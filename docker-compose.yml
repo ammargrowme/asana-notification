@@ -8,4 +8,4 @@ services:
       - .:/app
     ports:
       - 8000:8000
-    command: python asana-notification.py
+    command: python asana-notification-web.py
