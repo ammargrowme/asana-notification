@@ -20,4 +20,4 @@ env/
 Thumbs.db
 
 # Ignore sensitive data
-requirements.txt
+credentials.json
