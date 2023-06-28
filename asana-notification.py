@@ -298,10 +298,16 @@ def serve_http(port=8080, bind=""):
 
 # Schedule the script to run every Monday at 8 AM MST
 schedule.every().monday.at("08:00").do(run_script)
+logging.info('---')
+logging.info('Running weekly script')
+logging.info('---')
 
 # If the --run-now argument is specified, run the script immediately
 if args.run_now:
     run_script()
+    logging.info('---')
+    logging.info('Finished running script manually. Waiting for run command or weekly run.')
+
 
 # Start HTTP server in a separate thread
 http_thread = threading.Thread(target=serve_http)
