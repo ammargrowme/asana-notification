@@ -3,5 +3,5 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
-schedule  # if you decide to use 'schedule'
-APScheduler  # if you decide to use 'APScheduler'
+schedule
+aiohttp
