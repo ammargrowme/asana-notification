@@ -7,14 +7,14 @@ import json
 import logging
 import sys
 import threading
+import schedule
+import time
+from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
-from google_auth_oauthlib.flow import InstalledAppFlow
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from google.auth.transport.requests import Request
-import schedule
-import time
 
 # Set up logging
 logging.getLogger().setLevel(logging.INFO)
@@ -30,21 +30,19 @@ args = parser.parse_args()
 # Get environment variables
 asana_access_token = os.environ['ASANA_ACCESS_TOKEN']
 from_email = os.environ['FROM_EMAIL']
-to_email = os.environ['TO_EMAIL']
+to_emails = os.environ.get('TO_EMAIL', '').split(',')
 
 # If modifying these SCOPES, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def send_email(tasks, milestones):
     # Create the credentials object from environment variables
-    credentials_data = {
+    credentials = Credentials.from_authorized_user_info({
         'client_id': os.environ['WEB_CLIENT_ID'],
         'client_secret': os.environ['WEB_CLIENT_SECRET'],
-        'refresh_token': os.environ['WEB_REFRESH_TOKEN'],
+        'refresh_token': os.environ.get('WEB_REFRESH_TOKEN'),
         'token_uri': os.environ['WEB_TOKEN_URI'],
-    }
-
-    credentials = Credentials.from_authorized_user_info(credentials_data)
+    })
 
     if credentials.expired:
         # Refresh the access token using the refresh token
@@ -125,12 +123,13 @@ def send_email(tasks, milestones):
         message_text = '<p>No overdue tasks or milestones found.</p>'
 
     message = MIMEText(message_text, 'html')  # Set the second parameter to 'html'
-    message['to'] = to_email
+    message['to'] = ', '.join(to_emails)
     message['from'] = from_email
     message['subject'] = 'Overdue Asana Tasks'
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+
 
 def run_script():
     # Get workspace ID
