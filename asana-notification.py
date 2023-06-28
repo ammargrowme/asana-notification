@@ -297,13 +297,15 @@ def serve_http(port=8080, bind=""):
     httpd.serve_forever()
 
 # Schedule the script to run every Monday at 8 AM MST
-schedule.every().monday.at("08:00").do(run_script)
 logging.info('---')
 logging.info('Running weekly script')
 logging.info('---')
+schedule.every().monday.at("08:00").do(run_script)
 
 # If the --run-now argument is specified, run the script immediately
 if args.run_now:
+    logging.info('---')
+    logging.info('Running manually.')
     run_script()
     logging.info('---')
     logging.info('Finished running script manually. Waiting for run command or weekly run.')
