@@ -11,7 +11,4 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-# Copy credentials.json
-COPY credentials.json credentials.json
-
 EXPOSE 8000

@@ -21,3 +21,4 @@ Thumbs.db
 
 # Ignore sensitive data
 credentials.json
+.env

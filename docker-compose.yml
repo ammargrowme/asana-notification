@@ -7,5 +7,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - 8000:8000
-    command: python asana-notification-web.py
+      - 8080:8080
+    command: python asana-notification.py
+    env_file:
+      - .env
