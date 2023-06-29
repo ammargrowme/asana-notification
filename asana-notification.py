@@ -56,28 +56,22 @@ def send_email(tasks, milestones):
     # Organize tasks by projects
     for task_name, task_due_date, assignee_name, task_url, project_name in tasks:
         if project_name not in projects_dict:
-            projects_dict[project_name] = []
-        projects_dict[project_name].append((task_name, task_due_date, assignee_name, task_url))
+            projects_dict[project_name] = {'tasks': [], 'milestones': []}
+        projects_dict[project_name]['tasks'].append((task_name, task_due_date, assignee_name, task_url))
 
     # Organize milestones by projects
     for milestone_name, milestone_due_date, assignee_name, milestone_url, project_name in milestones:
         if project_name not in projects_dict:
-            projects_dict[project_name] = []
-        projects_dict[project_name].append((milestone_name, milestone_due_date, assignee_name, milestone_url))
+            projects_dict[project_name] = {'tasks': [], 'milestones': []}
+        projects_dict[project_name]['milestones'].append((milestone_name, milestone_due_date, assignee_name, milestone_url))
 
     # Sort projects_dict based on the total number of tasks and milestones combined
-    sorted_projects = sorted(projects_dict.items(), key=lambda x: len(x[1]), reverse=True)
+    sorted_projects = sorted(projects_dict.items(), key=lambda x: len(x[1]['tasks']) + len(x[1]['milestones']), reverse=True)
 
     message_text = ''
 
     for project_name, project_items in sorted(sorted_projects, key=lambda x: x[0]):
-        if len(project_items) == 0:
-            continue  # Skip empty projects
-
-        project_tasks = [item for item in project_items if len(item) == 4]  # Filter out milestones
-        project_milestones = [item for item in project_items if len(item) == 5]  # Filter out tasks
-
-        if len(project_tasks) == 0 and len(project_milestones) == 0:
+        if len(project_items['tasks']) == 0 and len(project_items['milestones']) == 0:
             continue  # Skip projects without tasks or milestones
 
         tasks_table = f'<h1>{project_name} Tasks</h1>'
@@ -88,7 +82,7 @@ def send_email(tasks, milestones):
                 <th style="text-align:center; font-weight:bold; border:1px solid black;">Due Date</th>
                 <th style="text-align:center; font-weight:bold; border:1px solid black;">Assignee</th>
             </tr>'''
-        for task_name, task_due_date, assignee_name, task_url in sorted(project_tasks, key=lambda x: x[1]):
+        for task_name, task_due_date, assignee_name, task_url in sorted(project_items['tasks'], key=lambda x: x[1]):
             tasks_table += f'''
             <tr>
                 <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
@@ -97,7 +91,7 @@ def send_email(tasks, milestones):
             </tr>'''
         tasks_table += '</table>'
 
-        if project_milestones:
+        if project_items['milestones']:
             milestones_table = f'<h1>{project_name} Milestones</h1>'
             milestones_table += '''
             <table style="border:1px solid black; border-collapse:collapse; width:100%;">
@@ -106,7 +100,7 @@ def send_email(tasks, milestones):
                     <th style="text-align:center; font-weight:bold; border:1px solid black;">Due Date</th>
                     <th style="text-align:center; font-weight:bold; border:1px solid black;">Assignee</th>
                 </tr>'''
-            for milestone_name, milestone_due_date, assignee_name, milestone_url in sorted(project_milestones, key=lambda x: x[1]):
+            for milestone_name, milestone_due_date, assignee_name, milestone_url in sorted(project_items['milestones'], key=lambda x: x[1]):
                 milestones_table += f'''
                 <tr>
                     <td style="border:1px solid black;"><a href="{milestone_url}">{milestone_name}</a></td>
@@ -129,6 +123,7 @@ def send_email(tasks, milestones):
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+
 
 
 def run_script():
@@ -166,32 +161,34 @@ def run_script():
 
     # Get un-archived projects for the specified teams
     projects = []
-    offset = None
-    while True:
-        params = {
-            'limit': 100,
-            'team': ','.join(team_ids),  # Include team IDs as a comma-separated string
-            'archived': False
-        }
-        if offset is not None:
-            params['offset'] = offset
-        response = requests.get(
-            f'https://app.asana.com/api/1.0/teams/{team_ids[0]}/projects',
-            headers={'Authorization': 'Bearer ' + asana_access_token},
-            params=params
-        )
+    for team_id in team_ids:
+        offset = None
+        while True:
+            params = {
+                'limit': 100,
+                'team': team_id,
+                'archived': False
+            }
+            if offset is not None:
+                params['offset'] = offset
+            response = requests.get(
+                f'https://app.asana.com/api/1.0/teams/{team_id}/projects',
+                headers={'Authorization': 'Bearer ' + asana_access_token},
+                params=params
+            )
 
-        if response.status_code == 200:
-            data = response.json()['data']
-            projects.extend(data)
-            next_page = response.json().get('next_page')
-            if next_page is not None:
-                offset = next_page.get('offset')
+            if response.status_code == 200:
+                data = response.json()['data']
+                projects.extend(data)
+                next_page = response.json().get('next_page')
+                if next_page is not None:
+                    offset = next_page.get('offset')
+                else:
+                    break
             else:
+                logging.error('Failed to fetch projects: %s %s', response.status_code, response.text)
                 break
-        else:
-            logging.error('Failed to fetch projects: %s %s', response.status_code, response.text)
-            break
+
 
 
     tasks = []
