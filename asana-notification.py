@@ -32,6 +32,9 @@ asana_access_token = os.environ['ASANA_ACCESS_TOKEN']
 from_email = os.environ['FROM_EMAIL']
 to_emails = os.environ.get('TO_EMAIL', '').split(',')
 
+# Define list of excluded projects
+excluded_projects = ['310779989024082', '1111864722010765', '1204430533460894']
+
 # If modifying these SCOPES, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
@@ -53,47 +56,44 @@ def send_email(tasks, milestones):
 
     projects_dict = {}
 
-    # Organize tasks by projects
-    for task_name, task_due_date, assignee_name, task_url, project_name in tasks:
-        if project_name not in projects_dict:
-          projects_dict[project_name] = []
-        projects_dict[project_name].append(('Task', task_name, task_due_date, assignee_name, task_url))
-
-    # Organize milestones by projects
-    for milestone_name, milestone_due_date, assignee_name, milestone_url, project_name in milestones:
+    # Organize tasks and milestones by projects
+    for task_name, task_due_date, assignee_name, task_url, project_name in tasks + milestones:
         if project_name not in projects_dict:
             projects_dict[project_name] = []
-        projects_dict[project_name].append(('Milestone', milestone_name, milestone_due_date, assignee_name, milestone_url))
+        item_type = 'Milestone' if (task_name, task_due_date, assignee_name, task_url, project_name) in milestones else 'Task'
+        projects_dict[project_name].append((item_type, task_name, task_due_date, assignee_name, task_url))
 
     # Sort projects_dict based on the total number of tasks and milestones combined
     sorted_projects = sorted(projects_dict.items(), key=lambda x: len(x[1]), reverse=True)
 
     message_text = ''
 
-    for project_name, project_items in sorted_projects:
+    for project_name, project_items in sorted(sorted_projects, key=lambda x: x[0]):
         if len(project_items) == 0:
             continue  # Skip projects without tasks or milestones
 
-        items_table = f'<h1>{project_name}</h1>'
-        items_table += '''
+        tasks_table = f'<h1>{project_name} Tasks</h1>'
+        tasks_table += '''
         <table style="border:1px solid black; border-collapse:collapse; width:100%;">
             <tr>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Type</th>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Name</th>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Due Date</th>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Assignee</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Type</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Task Name</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Due Date</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Assignee</th>
             </tr>'''
-        for item_type, item_name, item_due_date, assignee_name, item_url in sorted(project_items, key=lambda x: x[2]):
-            items_table += f'''
+
+        for item_type, task_name, task_due_date, assignee_name, task_url in sorted(project_items, key=lambda x: x[1]):
+            tasks_table += f'''
             <tr>
                 <td style="border:1px solid black;">{item_type}</td>
-                <td style="border:1px solid black;"><a href="{item_url}">{item_name}</a></td>
-                <td style="border:1px solid black;">{item_due_date.strftime("%Y-%m-%d")}</td>
+                <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
+                <td style="border:1px solid black;">{task_due_date.strftime("%Y-%m-%d")}</td>
                 <td style="border:1px solid black;">{assignee_name}</td>
             </tr>'''
-        items_table += '</table>'
 
-        message_text += items_table
+        tasks_table += '</table>'
+
+        message_text += tasks_table
 
     if not message_text:
         message_text = '<p>No overdue tasks or milestones found.</p>'
@@ -104,86 +104,7 @@ def send_email(tasks, milestones):
     message['subject'] = 'Overdue Asana Tasks and Milestones'
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-    service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
-    # Create the credentials object from environment variables
-    credentials = Credentials.from_authorized_user_info({
-        'client_id': os.environ['WEB_CLIENT_ID'],
-        'client_secret': os.environ['WEB_CLIENT_SECRET'],
-        'refresh_token': os.environ.get('WEB_REFRESH_TOKEN'),
-        'token_uri': os.environ['WEB_TOKEN_URI'],
-    })
 
-    if credentials.expired:
-        # Refresh the access token using the refresh token
-        credentials.refresh(Request())
-
-    # Use the updated access token for API requests
-    service = build('gmail', 'v1', credentials=credentials)
-
-    projects_dict = {}
-
-    # Organize tasks and milestones by projects
-    for task_name, task_due_date, assignee_name, task_url, project_name, item_type in tasks + milestones:
-        if project_name not in projects_dict:
-            projects_dict[project_name] = []
-        projects_dict[project_name].append((item_type, task_name, task_due_date, assignee_name, task_url))
-
-    # Sort projects_dict based on the total number of tasks and milestones combined
-    sorted_projects = sorted(projects_dict.items(), key=lambda x: len(x[1]), reverse=True)
-
-    message_text = ''
-
-    for project_name, project_items in sorted(sorted_projects, key=lambda x: x[0]):
-        if len(project_items['tasks']) == 0 and len(project_items['milestones']) == 0:
-            continue  # Skip projects without tasks or milestones
-
-        tasks_table = f'<h1>{project_name} Tasks</h1>'
-        tasks_table += '''
-        <table style="border:1px solid black; border-collapse:collapse; width:100%;">
-            <tr>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Task Name</th>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Due Date</th>
-                <th style="text-align:center; font-weight:bold; border:1px solid black;">Assignee</th>
-            </tr>'''
-        for task_name, task_due_date, assignee_name, task_url in sorted(project_items['tasks'], key=lambda x: x[1]):
-            tasks_table += f'''
-            <tr>
-                <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
-                <td style="border:1px solid black;">{task_due_date.strftime("%Y-%m-%d")}</td>
-                <td style="border:1px solid black;">{assignee_name}</td>
-            </tr>'''
-        tasks_table += '</table>'
-
-        if project_items['milestones']:
-            milestones_table = f'<h1>{project_name} Milestones</h1>'
-            milestones_table += '''
-            <table style="border:1px solid black; border-collapse:collapse; width:100%;">
-                <tr>
-                    <th style="text-align:center; font-weight:bold; border:1px solid black;">Milestone Name</th>
-                    <th style="text-align:center; font-weight:bold; border:1px solid black;">Due Date</th>
-                    <th style="text-align:center; font-weight:bold; border:1px solid black;">Assignee</th>
-                </tr>'''
-            for milestone_name, milestone_due_date, assignee_name, milestone_url in sorted(project_items['milestones'], key=lambda x: x[1]):
-                milestones_table += f'''
-                <tr>
-                    <td style="border:1px solid black;"><a href="{milestone_url}">{milestone_name}</a></td>
-                    <td style="border:1px solid black;">{milestone_due_date.strftime("%Y-%m-%d")}</td>
-                    <td style="border:1px solid black;">{assignee_name}</td>
-                </tr>'''
-            milestones_table += '</table>'
-
-            message_text += f'{milestones_table}{tasks_table}'
-        else:
-            message_text += tasks_table
-
-    if not message_text:
-        message_text = '<p>No overdue tasks or milestones found.</p>'
-
-    message = MIMEText(message_text, 'html')  # Set the second parameter to 'html'
-    message['to'] = ', '.join(to_emails)
-    message['from'] = from_email
-    message['subject'] = 'Overdue Asana Tasks'
-    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
 
@@ -270,6 +191,9 @@ def run_script():
     max_projects = args.max_projects if args.max_projects is not None else total_projects
 
     for project in projects[:max_projects]:
+        if project['gid'] in excluded_projects:
+            logging.info(f'Skipping excluded project with ID {project["gid"]}')
+            continue
         offset = None
         while True:
             params = {

@@ -8,6 +8,6 @@ services:
       - .:/app
     ports:
       - 8080:8080
-    command: python asana-notification.py --max-projects 5
+    command: python asana-notification.py
     env_file:
       - .env
