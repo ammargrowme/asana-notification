@@ -47,10 +47,12 @@ def send_email(tasks, milestones):
         'token_uri': os.environ['WEB_TOKEN_URI'],
     })
 
-    if credentials.expired:
-        # Refresh the access token using the refresh token
-        credentials.refresh(Request())
-
+    try:
+        if credentials.expired:
+            credentials.refresh(Request())
+    except google.auth.exceptions.RefreshError:
+        logging.error('Token has been expired or revoked. Please re-authenticate.')
+        return
     # Use the updated access token for API requests
     service = build('gmail', 'v1', credentials=credentials)
 
