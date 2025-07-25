@@ -26,11 +26,11 @@ logging.info('Starting script')
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-projects', type=int, help='Maximum number of projects to process')
 parser.add_argument('--run-now', action='store_true', help='Run the script immediately')
-args = parser.parse_args()
+args = None
 
-# Get environment variables
-asana_access_token = os.environ['ASANA_ACCESS_TOKEN']
-from_email = os.environ['FROM_EMAIL']
+# Get environment variables. Using `get` prevents import errors during testing
+asana_access_token = os.environ.get('ASANA_ACCESS_TOKEN')
+from_email = os.environ.get('FROM_EMAIL')
 to_emails = os.environ.get('TO_EMAIL', '').split(',')
 
 # Define list of excluded projects
@@ -38,6 +38,56 @@ excluded_projects = ['310779989024082', '1111864722010765', '1204430533460894']
 
 # If modifying these SCOPES, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
+def build_email_html(tasks, milestones):
+    """Create the HTML body for the email."""
+    projects_dict = {}
+
+    # Organize tasks and milestones by projects
+    for task_name, task_due_date, assignee_name, task_url, project_name in tasks + milestones:
+        if project_name not in projects_dict:
+            projects_dict[project_name] = []
+        item_type = 'Milestone' if (task_name, task_due_date, assignee_name, task_url, project_name) in milestones else 'Task'
+        projects_dict[project_name].append((item_type, task_name, task_due_date, assignee_name, task_url))
+
+    # Sort projects alphabetically for stable output
+    sorted_projects = sorted(projects_dict.items(), key=lambda x: x[0])
+
+    message_text = ''
+
+    for project_name, project_items in sorted_projects:
+        if len(project_items) == 0:
+            continue  # Skip projects without tasks or milestones
+
+        tasks_table = f'<h1>{project_name} Tasks</h1>'
+        tasks_table += '''
+        <table style="border:1px solid black; border-collapse:collapse; width:100%;">
+            <tr>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Type</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Task Name</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Due Date</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Assignee</th>
+            </tr>'''
+
+        # Sort each project's items by due date
+        for item_type, task_name, task_due_date, assignee_name, task_url in sorted(project_items, key=lambda x: x[2]):
+            tasks_table += f'''
+            <tr>
+                <td style="border:1px solid black;">{item_type}</td>
+                <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
+                <td style="border:1px solid black;">{task_due_date.strftime("%Y-%m-%d")}</td>
+                <td style="border:1px solid black;">{assignee_name}</td>
+            </tr>'''
+
+        tasks_table += '</table>'
+
+        message_text += tasks_table
+
+    if not message_text:
+        message_text = '<p>No overdue tasks or milestones found.</p>'
+
+    return message_text
+
 
 def send_email(tasks, milestones):
     # Create the credentials object from environment variables
@@ -57,49 +107,7 @@ def send_email(tasks, milestones):
     # Use the updated access token for API requests
     service = build('gmail', 'v1', credentials=credentials)
 
-    projects_dict = {}
-
-    # Organize tasks and milestones by projects
-    for task_name, task_due_date, assignee_name, task_url, project_name in tasks + milestones:
-        if project_name not in projects_dict:
-            projects_dict[project_name] = []
-        item_type = 'Milestone' if (task_name, task_due_date, assignee_name, task_url, project_name) in milestones else 'Task'
-        projects_dict[project_name].append((item_type, task_name, task_due_date, assignee_name, task_url))
-
-    # Sort projects_dict based on the total number of tasks and milestones combined
-    sorted_projects = sorted(projects_dict.items(), key=lambda x: len(x[1]), reverse=True)
-
-    message_text = ''
-
-    for project_name, project_items in sorted(sorted_projects, key=lambda x: x[0]):
-        if len(project_items) == 0:
-            continue  # Skip projects without tasks or milestones
-
-        tasks_table = f'<h1>{project_name} Tasks</h1>'
-        tasks_table += '''
-        <table style="border:1px solid black; border-collapse:collapse; width:100%;">
-            <tr>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Type</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Task Name</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Due Date</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Assignee</th>
-            </tr>'''
-
-        for item_type, task_name, task_due_date, assignee_name, task_url in sorted(project_items, key=lambda x: x[1]):
-            tasks_table += f'''
-            <tr>
-                <td style="border:1px solid black;">{item_type}</td>
-                <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
-                <td style="border:1px solid black;">{task_due_date.strftime("%Y-%m-%d")}</td>
-                <td style="border:1px solid black;">{assignee_name}</td>
-            </tr>'''
-
-        tasks_table += '</table>'
-
-        message_text += tasks_table
-
-    if not message_text:
-        message_text = '<p>No overdue tasks or milestones found.</p>'
+    message_text = build_email_html(tasks, milestones)
 
     message = MIMEText(message_text, 'html')  # Set the second parameter to 'html'
     message['to'] = ', '.join(to_emails)
@@ -217,7 +225,7 @@ def run_script():
 
             if response.status_code == 200:
                 project_tasks = response.json()['data']
-                print(f"Project details: {project_tasks}")
+                logging.debug("Project details: %s", project_tasks)
                 for task in project_tasks:
                     task_name = task.get('name')
                     task_due_date = task.get('due_on')
@@ -229,21 +237,21 @@ def run_script():
                     project_name = project['name']  
 
                     if task_due_date is None or assignee_name is None or completed:
-                        print(f"Skipping task: {task_name} - Due Date: {task_due_date} - Assignee: {assignee_name} - Completed: {completed} - Completed At: {completed_at}")
+                        logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
                         continue  # Skip tasks without a due date, assignee, or completed tasks
 
                     # Check if the task's due date is after the end of last week
                     task_due_date_dt = datetime.datetime.fromisoformat(task_due_date)
                     if task_due_date_dt.date() > last_week_end:
-                        print(f"Skipping task: {task_name} - Due Date: {task_due_date} - Assignee: {assignee_name} - Completed: {completed} - Completed At: {completed_at}")
+                        logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
                         continue
 
                     if task.get('resource_subtype') == 'milestone':
                         milestones.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name)) 
-                        print(f"Added milestone: {task_name} - Due Date: {task_due_date} - Assignee: {assignee_name} - Completed: {completed} - Completed At: {completed_at}")
+                        logging.debug("Added milestone: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
                     else:
                         tasks.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name))
-                        print(f"Added task: {task_name} - Due Date: {task_due_date} - Assignee: {assignee_name} - Completed: {completed} - Completed At: {completed_at}")
+                        logging.debug("Added task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
 
                 next_page = response.json().get('next_page')
                 if next_page is not None:
@@ -283,25 +291,32 @@ def serve_http(port=8080, bind=""):
     logging.info(f"Starting HTTP server on {bind}:{port}")
     httpd.serve_forever()
 
-# Schedule the script to run every Monday at 8 AM MST
-logging.info('---')
-logging.info('Running weekly script')
-logging.info('---')
-schedule.every().monday.at("08:00").do(run_script)
-
-# If the --run-now argument is specified, run the script immediately
-if args.run_now:
+def main():
+    """Entry point for running the scheduler and HTTP server."""
+    global args
+    args = parser.parse_args()
+    # Schedule the script to run every Monday at 8 AM MST
     logging.info('---')
-    logging.info('Running manually.')
-    run_script()
+    logging.info('Running weekly script')
     logging.info('---')
-    logging.info('Finished running script manually. Waiting for run command or weekly run.')
+    schedule.every().monday.at("08:00").do(run_script)
+
+    # If the --run-now argument is specified, run the script immediately
+    if args.run_now:
+        logging.info('---')
+        logging.info('Running manually.')
+        run_script()
+        logging.info('---')
+        logging.info('Finished running script manually. Waiting for run command or weekly run.')
+
+    # Start HTTP server in a separate thread
+    http_thread = threading.Thread(target=serve_http)
+    http_thread.start()
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
 
-# Start HTTP server in a separate thread
-http_thread = threading.Thread(target=serve_http)
-http_thread.start()
-
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+if __name__ == '__main__':
+    main()
