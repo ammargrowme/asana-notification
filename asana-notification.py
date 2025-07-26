@@ -156,7 +156,6 @@ def run_script():
     script_progress['running'] = True
     script_progress['complete'] = False
     script_progress['processed_projects'] = 0
-    script_progress['last_run'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     # Get workspace ID
     logging.info('Fetching workspace ID')
     response = requests.get(
@@ -312,6 +311,7 @@ def run_script():
     logging.info('Script completed')
     script_progress['running'] = False
     script_progress['complete'] = True
+    script_progress['last_run'] = datetime.datetime.utcnow().isoformat()
 
 def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
@@ -344,6 +344,7 @@ def serve_http(port=8080, bind=""):
                 <pre>python asana-notification.py --run-now</pre>
                 <p>You may also start it with Docker:</p>
                 <pre>docker-compose up</pre>
+                <p>Last run: {script_progress['last_run'] or 'Never'}</p>
                 </div>
                 </body>
                 </html>
@@ -397,7 +398,7 @@ def serve_http(port=8080, bind=""):
                 <div id='progress-container'><div id='progress-bar'>0%</div></div>
                 <p id='details'></p>
                 <p>Status: <span id='status'>Starting...</span></p>
-                <p>Last run: <span id='last_run'>Never</span></p>
+                <p>Last run: <span id='last_run'>{script_progress['last_run'] or 'Never'}</span></p>
                 <h2>Logs</h2>
                 <pre id='logs'></pre>
                 </div>
