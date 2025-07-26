@@ -21,6 +21,26 @@ logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info('Starting script')
 
+# Keep recent log messages in memory for the web UI
+log_buffer = []
+
+
+class InMemoryLogHandler(logging.Handler):
+    """Custom logging handler storing log messages in a buffer."""
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        log_buffer.append(log_entry)
+        # Limit buffer size to last 100 entries
+        if len(log_buffer) > 100:
+            del log_buffer[0]
+
+
+# Attach handler to root logger
+memory_handler = InMemoryLogHandler()
+memory_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logging.getLogger().addHandler(memory_handler)
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-projects', type=int, help='Maximum number of projects to process')
@@ -44,6 +64,7 @@ script_progress = {
     'processed_projects': 0,
     'running': False,
     'complete': False,
+    'last_run': None,
 }
 
 def build_email_html(tasks, milestones):
@@ -135,6 +156,7 @@ def run_script():
     script_progress['running'] = True
     script_progress['complete'] = False
     script_progress['processed_projects'] = 0
+    script_progress['last_run'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     # Get workspace ID
     logging.info('Fetching workspace ID')
     response = requests.get(
@@ -335,11 +357,13 @@ def serve_http(port=8080, bind=""):
                 self.send_header('Content-type', 'text/html')
                 self.end_headers()
                 html = """
-                <html><head><title>Script Progress</title>
+                <html><head><title>Asana Notification</title>
                 <style>
-                body { font-family: Arial, sans-serif; margin: 2em; }
-                #progress-container { width: 100%; background-color: #ddd; border-radius: 5px; }
-                #progress-bar { width: 0%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; border-radius: 5px; }
+                body { font-family: Arial, sans-serif; margin: 2em; background-color: #f4f4f4; }
+                .container { max-width: 800px; margin: auto; background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                #progress-container { width: 100%; background-color: #ddd; border-radius: 5px; overflow: hidden; }
+                #progress-bar { width: 0%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; }
+                #logs { background:#000; color:#0f0; padding:0.5em; height:200px; overflow-y:scroll; font-family: monospace; }
                 </style>
                 <script>
                 function update() {
@@ -350,20 +374,33 @@ def serve_http(port=8080, bind=""):
                     }
                     document.getElementById('progress-bar').style.width = percent + '%';
                     document.getElementById('progress-bar').textContent = percent + '%';
+                    document.getElementById('details').textContent = data.processed_projects + ' / ' + data.total_projects + ' projects';
                     var status = 'Running...';
                     if (!data.running) {
                       status = data.complete ? 'Completed' : 'Idle';
                     }
                     document.getElementById('status').textContent = status;
+                    document.getElementById('last_run').textContent = data.last_run || 'Never';
+                  });
+                  fetch('/logs').then(r => r.json()).then(data => {
+                    document.getElementById('logs').textContent = data.logs.join('\n');
+                    var logEl = document.getElementById('logs');
+                    logEl.scrollTop = logEl.scrollHeight;
                   });
                 }
                 setInterval(update, 2000);
                 window.onload = update;
                 </script></head>
                 <body>
+                <div class='container'>
                 <h1>Asana Notification</h1>
                 <div id='progress-container'><div id='progress-bar'>0%</div></div>
-                <p id='status'>Starting...</p>
+                <p id='details'></p>
+                <p>Status: <span id='status'>Starting...</span></p>
+                <p>Last run: <span id='last_run'>Never</span></p>
+                <h2>Logs</h2>
+                <pre id='logs'></pre>
+                </div>
                 </body></html>
                 """
                 self.wfile.write(html.encode())
@@ -372,6 +409,11 @@ def serve_http(port=8080, bind=""):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps(script_progress).encode())
+            elif self.path == '/logs':
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'logs': log_buffer}).encode())
             else:
                 self.send_response(404)
                 self.end_headers()
