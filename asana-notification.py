@@ -478,8 +478,8 @@ def serve_http(port=8080, bind=""):
                     document.getElementById('error').textContent = data.error ? 'Error: ' + data.error : '';
                   }});
                   fetch('/logs', {{cache: 'no-store'}}).then(r => r.json()).then(data => {{
-                    # Use two backslashes so the rendered JavaScript contains
-                    # a literal "\n" sequence instead of an actual newline.
+                    // Use two backslashes so the rendered JavaScript contains
+                    // a literal "\\n" sequence instead of an actual newline.
                     document.getElementById('logs').textContent = data.logs.join('\\n');
                     var logEl = document.getElementById('logs');
                     logEl.scrollTop = logEl.scrollHeight;
