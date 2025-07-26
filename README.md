@@ -59,6 +59,16 @@ Make sure your `.env` file is in the project directory.
 - `WEB_REFRESH_TOKEN` – refresh token for OAuth.
 - `WEB_TOKEN_URI` – token URI for OAuth refresh requests.
 
+## Running Tests
+
+Install the project dependencies and `pytest`, then execute the tests:
+
+```bash
+pip install -r requirements.txt
+pip install pytest
+pytest
+```
+
 ## License
 
 This project is provided as-is under the MIT License.
