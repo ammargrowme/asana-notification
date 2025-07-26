@@ -461,7 +461,7 @@ def serve_http(port=8080, bind=""):
                 </style>
                 <script>
                 function update() {
-                  fetch('/status').then(r => r.json()).then(data => {
+                  fetch('/status', {cache: 'no-store'}).then(r => r.json()).then(data => {
                     var percent = 0;
                     if (data.total_projects > 0) {
                       percent = Math.round((data.processed_projects / data.total_projects) * 100);
@@ -477,7 +477,7 @@ def serve_http(port=8080, bind=""):
                     document.getElementById('last_run').textContent = data.last_run || 'Never';
                     document.getElementById('error').textContent = data.error ? 'Error: ' + data.error : '';
                   });
-                  fetch('/logs').then(r => r.json()).then(data => {
+                  fetch('/logs', {cache: 'no-store'}).then(r => r.json()).then(data => {
                     document.getElementById('logs').textContent = data.logs.join('\n');
                     var logEl = document.getElementById('logs');
                     logEl.scrollTop = logEl.scrollHeight;
