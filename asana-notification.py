@@ -425,9 +425,12 @@ def serve_http(port=8080, bind=""):
                 <pre>python asana-notification.py --run-now</pre>
                 <p>You may also start it with Docker:</p>
                 <pre>docker-compose up</pre>
+                <p>See current progress at <a href='/status'>/status</a>.</p>
+
                 <h2>Recent Commits</h2>
                 {commits_html}
                 <p>Last run: {script_progress['last_run'] or 'Never'}</p>
+
                 </div>
                 </body>
                 </html>
