@@ -13,7 +13,7 @@ import google.auth.exceptions
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from google.auth.transport.requests import Request
 
 # Set up logging
@@ -516,7 +516,7 @@ def serve_http(port=8080, bind=""):
                 self.send_response(404)
                 self.end_headers()
 
-    httpd = HTTPServer((bind, port), RequestHandler)
+    httpd = ThreadingHTTPServer((bind, port), RequestHandler)
     logging.info(f"Starting HTTP server on {bind}:{port}")
     httpd.serve_forever()
 
