@@ -450,39 +450,39 @@ def serve_http(port=8080, bind=""):
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html')
                 self.end_headers()
-                html = """
+                html = f"""
                 <html><head><title>Asana Notification</title>
                 <style>
-                body { font-family: Arial, sans-serif; margin: 2em; background-color: #f4f4f4; }
-                .container { max-width: 800px; margin: auto; background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-                #progress-container { width: 100%; background-color: #ddd; border-radius: 5px; overflow: hidden; }
-                #progress-bar { width: 0%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; }
-                #logs { background:#000; color:#0f0; padding:0.5em; height:200px; overflow-y:scroll; font-family: monospace; }
+                body {{ font-family: Arial, sans-serif; margin: 2em; background-color: #f4f4f4; }}
+                .container {{ max-width: 800px; margin: auto; background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }}
+                #progress-container {{ width: 100%; background-color: #ddd; border-radius: 5px; overflow: hidden; }}
+                #progress-bar {{ width: 0%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; }}
+                #logs {{ background:#000; color:#0f0; padding:0.5em; height:200px; overflow-y:scroll; font-family: monospace; }}
                 </style>
                 <script>
-                function update() {
-                  fetch('/status', {cache: 'no-store'}).then(r => r.json()).then(data => {
+                function update() {{
+                  fetch('/status', {{cache: 'no-store'}}).then(r => r.json()).then(data => {{
                     var percent = 0;
-                    if (data.total_projects > 0) {
+                    if (data.total_projects > 0) {{
                       percent = Math.round((data.processed_projects / data.total_projects) * 100);
-                    }
+                    }}
                     document.getElementById('progress-bar').style.width = percent + '%';
                     document.getElementById('progress-bar').textContent = percent + '%';
                     document.getElementById('details').textContent = data.processed_projects + ' / ' + data.total_projects + ' projects';
                     var status = 'Running...';
-                    if (!data.running) {
+                    if (!data.running) {{
                       status = data.complete ? 'Completed' : 'Idle';
-                    }
+                    }}
                     document.getElementById('status').textContent = status;
                     document.getElementById('last_run').textContent = data.last_run || 'Never';
                     document.getElementById('error').textContent = data.error ? 'Error: ' + data.error : '';
-                  });
-                  fetch('/logs', {cache: 'no-store'}).then(r => r.json()).then(data => {
+                  }});
+                  fetch('/logs', {{cache: 'no-store'}}).then(r => r.json()).then(data => {{
                     document.getElementById('logs').textContent = data.logs.join('\n');
                     var logEl = document.getElementById('logs');
                     logEl.scrollTop = logEl.scrollHeight;
-                  });
-                }
+                  }});
+                  }}
                 setInterval(update, 2000);
                 window.onload = update;
                 </script></head>
