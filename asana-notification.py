@@ -3,14 +3,12 @@ import requests
 import datetime
 import os
 import base64
-import json
 import logging
 import sys
 import threading
 import schedule
 import time
 import google.auth.exceptions
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
