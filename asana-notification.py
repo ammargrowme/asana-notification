@@ -114,29 +114,68 @@ def build_email_html(tasks, milestones):
     # Sort projects alphabetically for stable output
     sorted_projects = sorted(projects_dict.items(), key=lambda x: x[0])
 
-    message_text = '<div style="font-family:Arial, sans-serif; color:#000000; background-color:#ffffff;">'
+    summary = {}
+    for project_name, project_items in projects_dict.items():
+        task_count = sum(1 for i in project_items if i[0] == 'Task')
+        milestone_count = sum(1 for i in project_items if i[0] == 'Milestone')
+        summary[project_name] = (task_count, milestone_count)
+
+    message_text = (
+        '<div style="font-family:Arial, sans-serif; color:#000000; background-color:#ffffff;">'
+        '<style>'
+        'table{border-collapse:collapse;width:100%;max-width:600px;}'
+        'th,td{padding:8px;border:1px solid #cccccc;text-align:left;}'
+        'th{background-color:#f0f0f0;}'
+        'tbody tr:nth-child(even){background-color:#f9f9f9;}'
+        '</style>'
+    )
+
+    if summary:
+        message_text += '<h1>Summary</h1><ul>'
+        for name in sorted(summary.keys()):
+            tasks_total, milestones_total = summary[name]
+            total = tasks_total + milestones_total
+            message_text += f'<li>{name}: {total} overdue ({tasks_total} tasks, {milestones_total} milestones)</li>'
+        message_text += '</ul>'
+
+    # Add table of contents linking to each project
+    if sorted_projects:
+        message_text += '<h1>Table of Contents</h1><ul>'
+        for project_name, _ in sorted_projects:
+            anchor = project_name.lower().replace(" ", "-")
+            message_text += f'<li><a href="#{anchor}">{project_name}</a></li>'
+        message_text += '</ul>'
 
     for project_name, project_items in sorted_projects:
         if len(project_items) == 0:
             continue  # Skip projects without tasks or milestones
 
-        tasks_table = f'<h1>{project_name} Tasks</h1>'
+        anchor = project_name.lower().replace(' ', '-')
+        tasks_table = f'<a name="{anchor}"></a><h1>{project_name} Tasks</h1>'
         tasks_table += '''
         <table style="border:1px solid #cccccc; border-collapse:collapse; width:100%; max-width:600px;">
             <tr>
                 <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Type</th>
                 <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Task Name</th>
                 <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Due Date</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Days Overdue</th>
                 <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Assignee</th>
             </tr>'''
 
         # Sort each project's items by due date
         for item_type, task_name, task_due_date, assignee_name, task_url in sorted(project_items, key=lambda x: x[2]):
+            days_overdue = (datetime.date.today() - task_due_date).days
+            row_color = '#ffffff'
+            if days_overdue > 14:
+                row_color = '#f8d7da'
+            elif days_overdue > 7:
+                row_color = '#fff3cd'
             tasks_table += f'''
-            <tr>
+            <tr style="background-color:{row_color};">
                 <td style="border:1px solid #cccccc; padding:8px;">{item_type}</td>
                 <td style="border:1px solid #cccccc; padding:8px;"><a href="{task_url}">{task_name}</a></td>
                 <td style="border:1px solid #cccccc; padding:8px;">{task_due_date.strftime("%Y-%m-%d")}</td>
+                <td style="border:1px solid #cccccc; padding:8px;">{days_overdue}</td>
                 <td style="border:1px solid #cccccc; padding:8px;">{assignee_name}</td>
             </tr>'''
 
@@ -147,6 +186,8 @@ def build_email_html(tasks, milestones):
     if message_text == '<div style="font-family:Arial, sans-serif; color:#000000; background-color:#ffffff;">':
         message_text += '<p>No overdue tasks or milestones found.</p>'
 
+    message_text += '<hr/><p><a href="http://localhost:8080/run">View online</a></p>'
+    message_text += '<p style="font-size:12px;color:#666;">Automated Asana report</p>'
     message_text += '</div>'
 
     return message_text
@@ -189,7 +230,6 @@ def run_script():
     script_progress['running'] = True
     script_progress['complete'] = False
     script_progress['processed_projects'] = 0
-    script_progress['last_run'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     # Get workspace ID
     logging.info('Fetching workspace ID')
     response = requests.get(
@@ -345,6 +385,7 @@ def run_script():
     logging.info('Script completed')
     script_progress['running'] = False
     script_progress['complete'] = True
+    script_progress['last_run'] = datetime.datetime.utcnow().isoformat()
 
 def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
@@ -386,6 +427,7 @@ def serve_http(port=8080, bind=""):
                 <pre>docker-compose up</pre>
                 <h2>Recent Commits</h2>
                 {commits_html}
+                <p>Last run: {script_progress['last_run'] or 'Never'}</p>
                 </div>
                 </body>
                 </html>
@@ -439,7 +481,7 @@ def serve_http(port=8080, bind=""):
                 <div id='progress-container'><div id='progress-bar'>0%</div></div>
                 <p id='details'></p>
                 <p>Status: <span id='status'>Starting...</span></p>
-                <p>Last run: <span id='last_run'>Never</span></p>
+                <p>Last run: <span id='last_run'>{script_progress['last_run'] or 'Never'}</span></p>
                 <h2>Logs</h2>
                 <pre id='logs'></pre>
                 </div>
