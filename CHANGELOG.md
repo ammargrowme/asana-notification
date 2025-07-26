@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2025-07-25
+### Changed
+- Refactored email HTML generation into a dedicated `build_email_html`
+  function for clearer code and stable sorting.
+### Added
+- Tests covering the new email HTML builder to ensure correct formatting
+  and milestone inclusion.
+
 ## [1.0.0] - 2023-10-02
 ### Added
 - Python script `asana-notification.py` for retrieving overdue Asana tasks and sending Gmail notifications.
