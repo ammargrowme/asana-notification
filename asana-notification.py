@@ -65,6 +65,7 @@ script_progress = {
     'running': False,
     'complete': False,
     'last_run': None,
+    'error': None,
 }
 
 
@@ -229,163 +230,170 @@ def run_script():
     script_progress['running'] = True
     script_progress['complete'] = False
     script_progress['processed_projects'] = 0
-    # Get workspace ID
-    logging.info('Fetching workspace ID')
-    response = requests.get(
-        'https://app.asana.com/api/1.0/workspaces',
-        headers={'Authorization': 'Bearer ' + asana_access_token},
-    )
-
-    if response.status_code == 200:
-        workspace_id = response.json()['data'][0]['gid']
-        logging.info('Workspace ID: %s', workspace_id)
-    else:
-        logging.error('Failed to fetch workspaces: %s %s', response.status_code, response.text)
-        workspace_id = None
-
-    # Fetch teams
-    logging.info('Fetching teams')
-    response = requests.get(
-        f'https://app.asana.com/api/1.0/workspaces/{workspace_id}/teams',
-        headers={'Authorization': 'Bearer ' + asana_access_token},
-    )
-
-    if response.status_code == 200:
-        teams = response.json()['data']
-        desired_teams = ["Website Builds", "Web Optimization Builds"]
-        team_ids = [team['gid'] for team in teams if team['name'] in desired_teams]
-        logging.info('Teams fetched successfully')
-        logging.info('Teams ID: %s', team_ids)
-
-    else:
-        logging.error('Failed to fetch teams: %s %s', response.status_code, response.text)
-        team_ids = []
-
-    # Get un-archived projects for the specified teams
-    projects = []
-    for team_id in team_ids:
-        offset = None
-        while True:
-            params = {
-                'limit': 100,
-                'team': team_id,
-                'archived': False
-            }
-            if offset is not None:
-                params['offset'] = offset
-            response = requests.get(
-                f'https://app.asana.com/api/1.0/teams/{team_id}/projects',
-                headers={'Authorization': 'Bearer ' + asana_access_token},
-                params=params
-            )
-
-            if response.status_code == 200:
-                data = response.json()['data']
-                projects.extend(data)
-                next_page = response.json().get('next_page')
-                if next_page is not None:
-                    offset = next_page.get('offset')
-                else:
-                    break
-            else:
-                logging.error('Failed to fetch projects: %s %s', response.status_code, response.text)
-                break
-
-
-
-    tasks = []
-    milestones = []
-
-    # Calculate the end of last week
-    # Considering the MST timezone which is UTC-7
-    today = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=7)).date()
-    start_of_week = today - datetime.timedelta(days=today.weekday())
-    last_week_end = start_of_week - datetime.timedelta(days=1)
-
-    # For each project, get all incomplete tasks that are due before now
-    total_projects = len(projects)
-    projects_processed = 0
-
-    max_projects = args.max_projects if args.max_projects is not None else total_projects
-    script_progress['total_projects'] = max_projects
-
-    for project in projects[:max_projects]:
-        if project['gid'] in excluded_projects:
-            logging.info(f'Skipping excluded project with ID {project["gid"]}')
-            continue
-        offset = None
-        while True:
-            params = {
-                'completed_since': 'now',  # Fetch only tasks that are not completed
-                'due_on.before': last_week_end.isoformat(),  # Fetch tasks due before the end of last week
-                'project': project['gid'],
-                'limit': 100,
-                'opt_fields': 'name,due_on,assignee,assignee.name,permalink_url,resource_subtype'
-            }
-            
-            if offset is not None:
-                params['offset'] = offset
-            response = requests.get(
-                'https://app.asana.com/api/1.0/tasks',
-                headers={'Authorization': 'Bearer ' + asana_access_token},
-                params=params
-            )
-
-            if response.status_code == 200:
-                project_tasks = response.json()['data']
-                logging.debug("Project details: %s", project_tasks)
-                for task in project_tasks:
-                    task_name = task.get('name')
-                    task_due_date = task.get('due_on')
-                    assignee = task.get('assignee')
-                    assignee_name = assignee.get('name') if assignee is not None else None
-                    task_url = task.get('permalink_url')
-                    completed = task.get('completed')
-                    completed_at = task.get('completed_at')
-                    project_name = project['name']  
-
-                    if task_due_date is None or assignee_name is None or completed:
-                        logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
-                        continue  # Skip tasks without a due date, assignee, or completed tasks
-
-                    # Check if the task's due date is after the end of last week
-                    task_due_date_dt = datetime.datetime.fromisoformat(task_due_date)
-                    if task_due_date_dt.date() > last_week_end:
-                        logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
-                        continue
-
-                    if task.get('resource_subtype') == 'milestone':
-                        milestones.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name)) 
-                        logging.debug("Added milestone: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
+    script_progress['error'] = None
+    try:
+        # Get workspace ID
+        logging.info('Fetching workspace ID')
+        response = requests.get(
+            'https://app.asana.com/api/1.0/workspaces',
+            headers={'Authorization': 'Bearer ' + asana_access_token},
+        )
+    
+        if response.status_code == 200:
+            workspace_id = response.json()['data'][0]['gid']
+            logging.info('Workspace ID: %s', workspace_id)
+        else:
+            logging.error('Failed to fetch workspaces: %s %s', response.status_code, response.text)
+            workspace_id = None
+    
+        # Fetch teams
+        logging.info('Fetching teams')
+        response = requests.get(
+            f'https://app.asana.com/api/1.0/workspaces/{workspace_id}/teams',
+            headers={'Authorization': 'Bearer ' + asana_access_token},
+        )
+    
+        if response.status_code == 200:
+            teams = response.json()['data']
+            desired_teams = ["Website Builds", "Web Optimization Builds"]
+            team_ids = [team['gid'] for team in teams if team['name'] in desired_teams]
+            logging.info('Teams fetched successfully')
+            logging.info('Teams ID: %s', team_ids)
+    
+        else:
+            logging.error('Failed to fetch teams: %s %s', response.status_code, response.text)
+            team_ids = []
+    
+        # Get un-archived projects for the specified teams
+        projects = []
+        for team_id in team_ids:
+            offset = None
+            while True:
+                params = {
+                    'limit': 100,
+                    'team': team_id,
+                    'archived': False
+                }
+                if offset is not None:
+                    params['offset'] = offset
+                response = requests.get(
+                    f'https://app.asana.com/api/1.0/teams/{team_id}/projects',
+                    headers={'Authorization': 'Bearer ' + asana_access_token},
+                    params=params
+                )
+    
+                if response.status_code == 200:
+                    data = response.json()['data']
+                    projects.extend(data)
+                    next_page = response.json().get('next_page')
+                    if next_page is not None:
+                        offset = next_page.get('offset')
                     else:
-                        tasks.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name))
-                        logging.debug("Added task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
-
-                next_page = response.json().get('next_page')
-                if next_page is not None:
-                    offset = next_page.get('offset')
+                        break
                 else:
+                    logging.error('Failed to fetch projects: %s %s', response.status_code, response.text)
                     break
-            else:
-                logging.error('Failed to fetch tasks for project %s: %s %s', project['gid'], response.status_code, response.text)
-                break
+    
+    
+    
+        tasks = []
+        milestones = []
+    
+        # Calculate the end of last week
+        # Considering the MST timezone which is UTC-7
+        today = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=7)).date()
+        start_of_week = today - datetime.timedelta(days=today.weekday())
+        last_week_end = start_of_week - datetime.timedelta(days=1)
+    
+        # For each project, get all incomplete tasks that are due before now
+        total_projects = len(projects)
+        projects_processed = 0
+    
+        max_projects = args.max_projects if args.max_projects is not None else total_projects
+        script_progress['total_projects'] = max_projects
+    
+        for project in projects[:max_projects]:
+            if project['gid'] in excluded_projects:
+                logging.info(f'Skipping excluded project with ID {project["gid"]}')
+                continue
+            offset = None
+            while True:
+                params = {
+                    'completed_since': 'now',  # Fetch only tasks that are not completed
+                    'due_on.before': last_week_end.isoformat(),  # Fetch tasks due before the end of last week
+                    'project': project['gid'],
+                    'limit': 100,
+                    'opt_fields': 'name,due_on,assignee,assignee.name,permalink_url,resource_subtype'
+                }
+                
+                if offset is not None:
+                    params['offset'] = offset
+                response = requests.get(
+                    'https://app.asana.com/api/1.0/tasks',
+                    headers={'Authorization': 'Bearer ' + asana_access_token},
+                    params=params
+                )
+    
+                if response.status_code == 200:
+                    project_tasks = response.json()['data']
+                    logging.debug("Project details: %s", project_tasks)
+                    for task in project_tasks:
+                        task_name = task.get('name')
+                        task_due_date = task.get('due_on')
+                        assignee = task.get('assignee')
+                        assignee_name = assignee.get('name') if assignee is not None else None
+                        task_url = task.get('permalink_url')
+                        completed = task.get('completed')
+                        completed_at = task.get('completed_at')
+                        project_name = project['name']  
+    
+                        if task_due_date is None or assignee_name is None or completed:
+                            logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
+                            continue  # Skip tasks without a due date, assignee, or completed tasks
+    
+                        # Check if the task's due date is after the end of last week
+                        task_due_date_dt = datetime.datetime.fromisoformat(task_due_date)
+                        if task_due_date_dt.date() > last_week_end:
+                            logging.debug("Skipping task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
+                            continue
+    
+                        if task.get('resource_subtype') == 'milestone':
+                            milestones.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name)) 
+                            logging.debug("Added milestone: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
+                        else:
+                            tasks.append((task_name, task_due_date_dt.date(), assignee_name, task_url, project_name))
+                            logging.debug("Added task: %s - Due Date: %s - Assignee: %s - Completed: %s - Completed At: %s", task_name, task_due_date, assignee_name, completed, completed_at)
+    
+                    next_page = response.json().get('next_page')
+                    if next_page is not None:
+                        offset = next_page.get('offset')
+                    else:
+                        break
+                else:
+                    logging.error('Failed to fetch tasks for project %s: %s %s', project['gid'], response.status_code, response.text)
+                    break
+    
+            projects_processed += 1
+            script_progress['processed_projects'] = projects_processed
+    
+            logging.info('Projects Processed: %d/%d', projects_processed, max_projects)
+            logging.info('---')
+    
+    
+        # Send an email with the overdue tasks and milestones
+        logging.info('Sending email')
+        send_email(tasks, milestones)
 
-        projects_processed += 1
-        script_progress['processed_projects'] = projects_processed
+        logging.info('Script completed')
 
-        logging.info('Projects Processed: %d/%d', projects_processed, max_projects)
-        logging.info('---')
+    except Exception as exc:  # pylint: disable=broad-except
+        logging.exception("Error during run_script")
+        script_progress["error"] = str(exc)
+    finally:
+        script_progress["running"] = False
+        script_progress["last_run"] = datetime.datetime.utcnow().isoformat()
 
-
-    # Send an email with the overdue tasks and milestones
-    logging.info('Sending email')
-    send_email(tasks, milestones)
-
-    logging.info('Script completed')
-    script_progress['running'] = False
-    script_progress['complete'] = True
-    script_progress['last_run'] = datetime.datetime.utcnow().isoformat()
-
+        script_progress["complete"] = script_progress["error"] is None
 def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -467,6 +475,7 @@ def serve_http(port=8080, bind=""):
                     }
                     document.getElementById('status').textContent = status;
                     document.getElementById('last_run').textContent = data.last_run || 'Never';
+                    document.getElementById('error').textContent = data.error ? 'Error: ' + data.error : '';
                   });
                   fetch('/logs').then(r => r.json()).then(data => {
                     document.getElementById('logs').textContent = data.logs.join('\n');
@@ -483,6 +492,7 @@ def serve_http(port=8080, bind=""):
                 <div id='progress-container'><div id='progress-bar'>0%</div></div>
                 <p id='details'></p>
                 <p>Status: <span id='status'>Starting...</span></p>
+                <p id='error' style='color:red'></p>
                 <p>Last run: <span id='last_run'>{script_progress['last_run'] or 'Never'}</span></p>
                 <h2>Logs</h2>
                 <pre id='logs'></pre>
