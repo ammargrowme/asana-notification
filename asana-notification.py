@@ -51,7 +51,7 @@ def build_email_html(tasks, milestones):
     # Sort projects alphabetically for stable output
     sorted_projects = sorted(projects_dict.items(), key=lambda x: x[0])
 
-    message_text = ''
+    message_text = '<div style="font-family:Arial, sans-serif; color:#000000; background-color:#ffffff;">'
 
     for project_name, project_items in sorted_projects:
         if len(project_items) == 0:
@@ -59,30 +59,32 @@ def build_email_html(tasks, milestones):
 
         tasks_table = f'<h1>{project_name} Tasks</h1>'
         tasks_table += '''
-        <table style="border:1px solid black; border-collapse:collapse; width:100%;">
+        <table style="border:1px solid #cccccc; border-collapse:collapse; width:100%; max-width:600px;">
             <tr>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Type</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Task Name</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Due Date</th>
-                <th style="text-align:left !important; font-weight:bold; border:1px solid black;">Assignee</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Type</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Task Name</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Due Date</th>
+                <th style="text-align:left !important; font-weight:bold; border:1px solid #cccccc; padding:8px; background-color:#f0f0f0;">Assignee</th>
             </tr>'''
 
         # Sort each project's items by due date
         for item_type, task_name, task_due_date, assignee_name, task_url in sorted(project_items, key=lambda x: x[2]):
             tasks_table += f'''
             <tr>
-                <td style="border:1px solid black;">{item_type}</td>
-                <td style="border:1px solid black;"><a href="{task_url}">{task_name}</a></td>
-                <td style="border:1px solid black;">{task_due_date.strftime("%Y-%m-%d")}</td>
-                <td style="border:1px solid black;">{assignee_name}</td>
+                <td style="border:1px solid #cccccc; padding:8px;">{item_type}</td>
+                <td style="border:1px solid #cccccc; padding:8px;"><a href="{task_url}">{task_name}</a></td>
+                <td style="border:1px solid #cccccc; padding:8px;">{task_due_date.strftime("%Y-%m-%d")}</td>
+                <td style="border:1px solid #cccccc; padding:8px;">{assignee_name}</td>
             </tr>'''
 
         tasks_table += '</table>'
 
         message_text += tasks_table
 
-    if not message_text:
-        message_text = '<p>No overdue tasks or milestones found.</p>'
+    if message_text == '<div style="font-family:Arial, sans-serif; color:#000000; background-color:#ffffff;">':
+        message_text += '<p>No overdue tasks or milestones found.</p>'
+
+    message_text += '</div>'
 
     return message_text
 
