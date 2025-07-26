@@ -226,7 +226,6 @@ def send_email(tasks, milestones):
 
 
 def run_script():
-    global script_progress
     script_progress['running'] = True
     script_progress['complete'] = False
     script_progress['processed_projects'] = 0
@@ -299,7 +298,7 @@ def run_script():
 
     # Calculate the end of last week
     # Considering the MST timezone which is UTC-7
-    today = datetime.datetime.now(datetime.timezone.utc).date() - datetime.timedelta(hours=7)
+    today = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=7)).date()
     start_of_week = today - datetime.timedelta(days=today.weekday())
     last_week_end = start_of_week - datetime.timedelta(days=1)
 
