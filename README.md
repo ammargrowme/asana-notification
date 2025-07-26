@@ -6,8 +6,10 @@ This repository provides a Python script and optional Docker setup for sending w
 
 - Retrieves tasks and milestones that were due before the end of the previous week.
 - Looks for projects in the **Website Builds** and **Web Optimization Builds** teams, excluding specific project IDs.
-- Sends a formatted HTML email showing overdue tasks grouped by project.
-- Runs automatically every Monday at 08:00 MST and exposes an HTTP endpoint `/run` for manual execution.
+- Sends a formatted HTML email that includes a summary section and navigation links for each project.
+- Runs automatically every Monday at 08:00 MST and exposes a web interface for manual execution and monitoring.
+- The landing page `/` provides usage instructions, shows the last run time and lists recent GitHub commits.
+- `/run` displays a live progress bar and streaming logs powered by the `/status` and `/logs` endpoints.
 - Can be launched directly with Python or inside a Docker container using `docker-compose`.
 
 ## Requirements
@@ -32,7 +34,7 @@ pip install -r requirements.txt
 python asana-notification.py --run-now
 ```
 
-The script will continue running and schedule itself every Monday. Visit `http://localhost:8080/` for a help page or `http://localhost:8080/run` to trigger it manually.
+The script will continue running and schedule itself every Monday. Visit `http://localhost:8080/` for instructions, the last run time and recent commits. Open `http://localhost:8080/run` to start a run and watch progress live. JSON data is also available at `/status` and `/logs`.
 
 ### Docker
 
