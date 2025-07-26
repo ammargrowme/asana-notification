@@ -8,6 +8,7 @@ import sys
 import threading
 import schedule
 import time
+import json
 import google.auth.exceptions
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -36,6 +37,14 @@ excluded_projects = ['310779989024082', '1111864722010765', '1204430533460894']
 
 # If modifying these SCOPES, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
+# Track progress information for the web UI
+script_progress = {
+    'total_projects': 0,
+    'processed_projects': 0,
+    'running': False,
+    'complete': False,
+}
 
 def build_email_html(tasks, milestones):
     """Create the HTML body for the email."""
@@ -120,6 +129,10 @@ def send_email(tasks, milestones):
 
 
 def run_script():
+    global script_progress
+    script_progress['running'] = True
+    script_progress['complete'] = False
+    script_progress['processed_projects'] = 0
     # Get workspace ID
     logging.info('Fetching workspace ID')
     response = requests.get(
@@ -198,6 +211,7 @@ def run_script():
     projects_processed = 0
 
     max_projects = args.max_projects if args.max_projects is not None else total_projects
+    script_progress['total_projects'] = max_projects
 
     for project in projects[:max_projects]:
         if project['gid'] in excluded_projects:
@@ -261,6 +275,7 @@ def run_script():
                 break
 
         projects_processed += 1
+        script_progress['processed_projects'] = projects_processed
 
         logging.info('Projects Processed: %d/%d', projects_processed, max_projects)
         logging.info('---')
@@ -271,16 +286,57 @@ def run_script():
     send_email(tasks, milestones)
 
     logging.info('Script completed')
+    script_progress['running'] = False
+    script_progress['complete'] = True
 
 def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == '/run':
                 logging.info("Received HTTP request to run script")
-                threading.Thread(target=run_script).start()
+                if not script_progress['running']:
+                    threading.Thread(target=run_script, daemon=True).start()
                 self.send_response(200)
+                self.send_header('Content-type', 'text/html')
                 self.end_headers()
-                self.wfile.write(b'Script is running.\n')
+                html = """
+                <html><head><title>Script Progress</title>
+                <style>
+                body { font-family: Arial, sans-serif; margin: 2em; }
+                #progress-container { width: 100%; background-color: #ddd; border-radius: 5px; }
+                #progress-bar { width: 0%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; border-radius: 5px; }
+                </style>
+                <script>
+                function update() {
+                  fetch('/status').then(r => r.json()).then(data => {
+                    var percent = 0;
+                    if (data.total_projects > 0) {
+                      percent = Math.round((data.processed_projects / data.total_projects) * 100);
+                    }
+                    document.getElementById('progress-bar').style.width = percent + '%';
+                    document.getElementById('progress-bar').textContent = percent + '%';
+                    var status = 'Running...';
+                    if (!data.running) {
+                      status = data.complete ? 'Completed' : 'Idle';
+                    }
+                    document.getElementById('status').textContent = status;
+                  });
+                }
+                setInterval(update, 2000);
+                window.onload = update;
+                </script></head>
+                <body>
+                <h1>Asana Notification</h1>
+                <div id='progress-container'><div id='progress-bar'>0%</div></div>
+                <p id='status'>Starting...</p>
+                </body></html>
+                """
+                self.wfile.write(html.encode())
+            elif self.path == '/status':
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(script_progress).encode())
             else:
                 self.send_response(404)
                 self.end_headers()
