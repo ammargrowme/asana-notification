@@ -294,7 +294,40 @@ def run_script():
 def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == '/run':
+            if self.path in ('/', '/index.html'):
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                html = """
+                <!DOCTYPE html>
+                <html lang='en'>
+                <head>
+                <meta charset='utf-8'/>
+                <meta name='viewport' content='width=device-width, initial-scale=1'/>
+                <title>Asana Notification</title>
+                <style>
+                body { font-family: Arial, sans-serif; margin:0; padding:20px; background:#f7f7f7; }
+                .container { max-width:800px; margin:auto; background:#fff; padding:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+                pre { background:#f0f0f0; padding:10px; overflow:auto; }
+                @media (max-width:600px) { body { padding:10px; } }
+                </style>
+                </head>
+                <body>
+                <div class='container'>
+                <h1>Asana Notification</h1>
+                <p>This application collects overdue Asana tasks and emails a weekly summary.</p>
+                <p>To trigger a run manually, open <strong><a href='/run'>/run</a></strong> in your browser.</p>
+                <h2>Manual Execution</h2>
+                <p>Prepare a <code>.env</code> file using <code>.env.example</code> and then run:</p>
+                <pre>python asana-notification.py --run-now</pre>
+                <p>You may also start it with Docker:</p>
+                <pre>docker-compose up</pre>
+                </div>
+                </body>
+                </html>
+                """
+                self.wfile.write(html.encode())
+            elif self.path == '/run':
                 logging.info("Received HTTP request to run script")
                 if not script_progress['running']:
                     threading.Thread(target=run_script, daemon=True).start()

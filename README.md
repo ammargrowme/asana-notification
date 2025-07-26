@@ -32,7 +32,7 @@ pip install -r requirements.txt
 python asana-notification.py --run-now
 ```
 
-The script will continue running and schedule itself every Monday. Visit `http://localhost:8080/run` to trigger it manually.
+The script will continue running and schedule itself every Monday. Visit `http://localhost:8080/` for a help page or `http://localhost:8080/run` to trigger it manually.
 
 ### Docker
 
