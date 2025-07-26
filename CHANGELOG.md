@@ -18,3 +18,5 @@ All notable changes to this project will be documented in this file.
 - Logging for fetching data and sending emails.
 - HTTP endpoint `/run` to trigger the script manually.
 
+## [Unreleased]
+- 2025-07-25: Merge pull request #14 from ammargrowme/codex/add-commit-fetching-functionality

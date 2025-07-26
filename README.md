@@ -44,6 +44,17 @@ docker-compose up
 
 Make sure your `.env` file is in the project directory.
 
+## Automatic Changelog Updates
+
+Install the Git hook to keep `CHANGELOG.md` and the README's recent change
+section in sync with your commits:
+
+```bash
+./hooks/install.sh
+```
+
+Every time you commit, the hook will record the commit message and date.
+
 ## Command-line Options
 
 - `--max-projects NUM` – limit the number of projects processed.
@@ -75,3 +86,5 @@ pytest
 
 This project is provided as-is under the MIT License.
 
+## Recent Changes
+- 2025-07-25: Merge pull request #14 from ammargrowme/codex/add-commit-fetching-functionality

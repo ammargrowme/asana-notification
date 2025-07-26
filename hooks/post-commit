@@ -1,0 +1,3 @@
+#!/bin/sh
+# Update documentation based on the latest commit
+python3 scripts/update_docs.py
