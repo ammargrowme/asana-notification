@@ -87,6 +87,7 @@ pytest
 This project is provided as-is under the MIT License.
 
 ## Recent Changes
+- 2025-07-25: Merge pull request #24 from ammargrowme/codex/fix-progress-bar-and-status-errors
 - 2025-07-25: Merge pull request #14 from ammargrowme/codex/add-commit-fetching-functionality
 - 2025-07-25: Add status link on landing page
 - 2025-07-25: Remove aiohttp dependency
