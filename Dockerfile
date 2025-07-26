@@ -1,7 +1,7 @@
-FROM python:3.8-slim-buster
+FROM python:3.11-slim
 
-# Install required system dependencies
-RUN apt-get update && apt-get install -y gcc
+# No additional system dependencies are required for installing the
+# Python packages, so we can rely on the slim image alone.
 
 WORKDIR /app
 
