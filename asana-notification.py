@@ -67,6 +67,39 @@ script_progress = {
     'last_run': None,
 }
 
+
+def fetch_commits():
+    """Retrieve recent commits from the configured GitHub repository."""
+    repo = os.environ.get("GITHUB_REPO")
+    token = os.environ.get("GITHUB_TOKEN")
+
+    if not repo:
+        return []
+
+    url = f"https://api.github.com/repos/{repo}/commits"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    try:
+        response = requests.get(url, params={"per_page": 5}, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        logging.error("Error fetching commits: %s", exc)
+        return None
+
+    if response.status_code != 200:
+        logging.error("Failed to fetch commits: %s %s", response.status_code, response.text)
+        return None
+
+    commits = []
+    for entry in response.json():
+        author = entry.get("commit", {}).get("author", {}).get("name", "Unknown")
+        message = entry.get("commit", {}).get("message", "").splitlines()[0]
+        sha = entry.get("sha", "")[:7]
+        commits.append(f"{author}: {message} ({sha})")
+
+    return commits
+
 def build_email_html(tasks, milestones):
     """Create the HTML body for the email."""
     projects_dict = {}
@@ -317,10 +350,17 @@ def serve_http(port=8080, bind=""):
     class RequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path in ('/', '/index.html'):
+                commits = fetch_commits()
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html')
                 self.end_headers()
-                html = """
+                if commits is None:
+                    commits_html = '<p>Unable to load commits</p>'
+                elif commits:
+                    commits_html = '<ul>' + ''.join(f'<li>{c}</li>' for c in commits) + '</ul>'
+                else:
+                    commits_html = ''
+                html = f"""
                 <!DOCTYPE html>
                 <html lang='en'>
                 <head>
@@ -328,10 +368,10 @@ def serve_http(port=8080, bind=""):
                 <meta name='viewport' content='width=device-width, initial-scale=1'/>
                 <title>Asana Notification</title>
                 <style>
-                body { font-family: Arial, sans-serif; margin:0; padding:20px; background:#f7f7f7; }
-                .container { max-width:800px; margin:auto; background:#fff; padding:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-                pre { background:#f0f0f0; padding:10px; overflow:auto; }
-                @media (max-width:600px) { body { padding:10px; } }
+                body {{ font-family: Arial, sans-serif; margin:0; padding:20px; background:#f7f7f7; }}
+                .container {{ max-width:800px; margin:auto; background:#fff; padding:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }}
+                pre {{ background:#f0f0f0; padding:10px; overflow:auto; }}
+                @media (max-width:600px) {{ body {{ padding:10px; }} }}
                 </style>
                 </head>
                 <body>
@@ -344,6 +384,8 @@ def serve_http(port=8080, bind=""):
                 <pre>python asana-notification.py --run-now</pre>
                 <p>You may also start it with Docker:</p>
                 <pre>docker-compose up</pre>
+                <h2>Recent Commits</h2>
+                {commits_html}
                 </div>
                 </body>
                 </html>

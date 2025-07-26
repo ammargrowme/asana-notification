@@ -58,6 +58,8 @@ Make sure your `.env` file is in the project directory.
 - `WEB_CLIENT_SECRET` – Gmail OAuth client secret.
 - `WEB_REFRESH_TOKEN` – refresh token for OAuth.
 - `WEB_TOKEN_URI` – token URI for OAuth refresh requests.
+- `GITHUB_REPO` – repository in `owner/repo` form for showing recent commits.
+- `GITHUB_TOKEN` – optional token for authenticated GitHub API requests.
 
 ## Running Tests
 
