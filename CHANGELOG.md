@@ -20,3 +20,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - 2025-07-25: Merge pull request #14 from ammargrowme/codex/add-commit-fetching-functionality
+- 2025-07-25: Add status link on landing page
+- 2025-07-25: Remove aiohttp dependency
+- 2025-07-25: feat: add automatic changelog updates
